@@ -1,0 +1,39 @@
+{
+  "name": "cloudflare-axi",
+  "version": "0.1.0",
+  "description": "AXI-compliant Cloudflare CLI \u2014 zones, DNS, cache, and Email Routing with token-efficient TOON output",
+  "keywords": [
+    "axi",
+    "cloudflare",
+    "dns",
+    "email-routing",
+    "agent",
+    "cli",
+    "toon"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "cloudflare-axi": "bin/cloudflare-axi.js"
+  },
+  "exports": {
+    ".": "./src/cli.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "skills",
+    "README.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "test": "node --test \"test/*.test.js\""
+  },
+  "dependencies": {
+    "@toon-format/toon": "^4.1.1",
+    "axi-sdk-js": "^0.1.11"
+  }
+}
