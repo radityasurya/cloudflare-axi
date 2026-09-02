@@ -33,6 +33,8 @@ npx -y cloudflare-axi cache purge --all
 npx -y cloudflare-axi email list
 npx -y cloudflare-axi email route hi me@gmail.com
 npx -y cloudflare-axi email catch-all --drop
+npx -y cloudflare-axi security
+npx -y cloudflare-axi security check https://example.com/
 ```
 
 Every command takes `--help` for a concise reference, and `--zone <name>` to pick the
@@ -50,6 +52,9 @@ target zone when the token can see more than one.
   paginating to count.
 - **Unverified email destinations are flagged.** Cloudflare accepts a forwarding rule to an
   unverified address and then silently drops the mail.
+- **Diagnosing a blocked fetch.** When a site behind Cloudflare returns 403 or an
+  unexplained challenge to curl or a crawler, run `security check <url>` — it probes the URL
+  and names the responsible setting rather than guessing from the status code.
 - **Errors are structured** on stdout with a `help` block naming the fix, and an unknown
   flag exits 2 listing the valid flags. Correct the flag — do not drop the filter.
 
