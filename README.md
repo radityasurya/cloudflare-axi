@@ -114,6 +114,10 @@ cloudflare-axi email catch-all me@gmail.com
 cloudflare-axi email catch-all --drop
 cloudflare-axi email delete hi
 
+cloudflare-axi security                         # bot protection + challenge settings
+cloudflare-axi security check https://example.com/   # why can't a bot fetch this?
+cloudflare-axi security rules                   # custom WAF rules
+
 cloudflare-axi update --check                   # newer release available?
 ```
 
@@ -126,6 +130,7 @@ cloudflare-axi update --check                   # newer release available?
 | `dns` | `list`, `get`, `set`, `delete` | DNS records, idempotent writes |
 | `cache` | `purge` | Edge cache purging |
 | `email` | `list`, `addresses`, `route`, `catch-all`, `delete` | Email Routing |
+| `security` | `show`, `rules`, `check` | Bot protection, WAF rules, and challenge diagnosis |
 | `setup` | `hooks`, `status`, `uninstall` | Agent session integration |
 
 Every subcommand takes `--help` for a concise reference with its flags and examples.

@@ -12,6 +12,19 @@ export function mockCloudflare(routes) {
   resetCaches();
   globalThis.fetch = async (url, init = {}) => {
     const parsed = new URL(url);
+    // `security check` probes an arbitrary site URL through the same global
+    // fetch the API client uses; route those to a separate table so a probe
+    // never looks like an unrouted API call.
+    if (parsed.hostname !== "api.cloudflare.com") {
+      const probe = routes[`PROBE ${url}`] ?? routes["PROBE *"];
+      if (!probe) throw new Error(`no probe route for ${url}`);
+      return {
+        ok: probe.status < 400,
+        status: probe.status,
+        headers: { get: (h) => probe.headers?.[h.toLowerCase()] ?? null },
+        json: async () => ({}),
+      };
+    }
     const path = parsed.pathname.replace("/client/v4", "");
     const method = init.method ?? "GET";
     const body = init.body ? JSON.parse(init.body) : undefined;

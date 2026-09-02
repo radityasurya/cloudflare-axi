@@ -7,6 +7,7 @@ import { BIN } from "./args.js";
 import { cacheCommand } from "./commands/cache.js";
 import { dnsCommand } from "./commands/dns.js";
 import { emailCommand } from "./commands/email.js";
+import { securityCommand } from "./commands/security.js";
 import { setupCommand } from "./commands/setup.js";
 import { zoneCommand } from "./commands/zone.js";
 import { VERSION } from "./version.js";
@@ -24,6 +25,7 @@ const TOP_LEVEL_HELP = `${encode({
     dns: "list, get, set, delete",
     cache: "purge",
     email: "list, addresses, route, catch-all, delete",
+    security: "show, rules, check",
     setup: "hooks, status, uninstall",
   },
   globals: {
@@ -37,6 +39,7 @@ const TOP_LEVEL_HELP = `${encode({
     `${BIN} dns set www A 203.0.113.10 --proxied`,
     `${BIN} email route hi me@gmail.com`,
     `${BIN} cache purge --all`,
+    `${BIN} security check https://example.com/`,
   ],
   help: [`Run \`${BIN} <command> --help\` for a command reference`],
 })}\n`;
@@ -93,6 +96,7 @@ export async function main() {
       dns: dnsCommand,
       cache: cacheCommand,
       email: emailCommand,
+      security: securityCommand,
       setup: setupCommand,
     },
   });
