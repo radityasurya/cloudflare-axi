@@ -93,6 +93,22 @@ guard workflow blocks PRs that touch them.
 
 ## Testing without a Cloudflare account
 
-`test/helpers.js#mockCloudflare` stubs `globalThis.fetch` with a route table keyed on
+`tests/helpers.js#mockCloudflare` stubs `globalThis.fetch` with a route table keyed on
 `"METHOD /path"` and returns the call log, so tests assert the exact request bodies sent —
 not just that a call happened. No network, no token, no account required.
+
+## Test discovery: `tests/`, not `test/` (CI caught this)
+
+Two traps stacked here, both surfaced only on Node 20 in CI:
+
+- `node --test "test/*.test.js"` needs the runner to expand the glob itself, which is
+  **Node 22+**. On Node 20 the pattern is taken literally and the run fails with
+  `Could not find '.../test/*.test.js'`. The script is therefore a bare `node --test`,
+  relying on default discovery.
+- Default discovery treats **every file under a directory named `test`** as a test file, not
+  just `*.test.js`. That ran `fake-coolify.mjs` (which exits 1 by design when handed an
+  unknown command) as a test, and reported `helpers.js` as an empty passing test.
+
+Naming the directory `tests` fixes both: `tests/*.test.js` still matches the default
+`**/*.test.js` pattern by name, while `tests/helpers.js` and `tests/fixtures/**` match none
+of the default patterns and stay out of the run. Do not rename it back to `test/`.
