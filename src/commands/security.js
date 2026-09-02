@@ -21,6 +21,15 @@ const HELP = {
     usage: `${BIN} security rules [--zone <name>]`,
     examples: [`${BIN} security rules --zone example.com`],
   }),
+  "ai-bots": helpFor({
+    command: "security ai-bots",
+    description: "Turn Cloudflare's AI scraper and crawler blocking on or off (idempotent)",
+    usage: `${BIN} security ai-bots <block|allow> [--zone <name>]`,
+    examples: [
+      `${BIN} security ai-bots allow --zone example.com`,
+      `${BIN} security ai-bots block --zone example.com`,
+    ],
+  }),
   check: helpFor({
     command: "security check",
     description:
@@ -82,6 +91,70 @@ function botPosture(bot) {
     on.push(`crawler_protection=${bot.crawler_protection}`);
   }
   return on.length ? on.join(" ") : "none active";
+}
+
+// Fields Cloudflare computes or manages; echoing them back on a write is at
+// best ignored and at worst rejected.
+const BOT_READONLY = new Set(["using_latest_model", "is_robots_txt_managed", "ai_bots_migration_opt_out"]);
+
+const AI_BOTS_VALUES = { block: "block", allow: "disabled", off: "disabled", on: "block" };
+
+/**
+ * Toggle Cloudflare's "Block AI Scrapers and Crawlers". Idempotent: already in
+ * the requested state is a no-op at exit 0. The write echoes back the full
+ * current config with one field changed, so it is correct whether the endpoint
+ * treats PUT as a patch or as a replace.
+ */
+async function aiBots(argv) {
+  if (wantsHelp(argv)) return HELP["ai-bots"];
+  const { values, positionals } = parse(argv, { command: "security ai-bots" });
+  const wanted = required(
+    positionals[0],
+    "<block|allow>",
+    "security ai-bots",
+    `${BIN} security ai-bots allow --zone example.com`,
+  ).toLowerCase();
+  const target = AI_BOTS_VALUES[wanted];
+  if (!target) {
+    throw new AxiError(`unknown value ${positionals[0]}`, "VALIDATION_ERROR", [
+      "Pass `block` to stop AI crawlers, or `allow` to let them through",
+    ]);
+  }
+
+  const options = { env: process.env };
+  const zone = await resolveZone(values.zone, options);
+  const current = await botManagement(zone.id, options);
+  if (!current) {
+    throw new AxiError("cannot read bot management for this zone", "AUTH_ERROR", [
+      "The token needs Zone > Bot Management > Read to inspect it",
+      "and Zone > Bot Management > Edit to change it",
+    ]);
+  }
+  if (current.ai_bots_protection === target) {
+    return {
+      zone: zone.name,
+      ai_bots_protection: target,
+      unchanged: true,
+      note: `already ${target} (no-op)`,
+    };
+  }
+
+  const body = Object.fromEntries(
+    Object.entries(current).filter(([key]) => !BOT_READONLY.has(key)),
+  );
+  body.ai_bots_protection = target;
+  const { result } = await cf(`/zones/${zone.id}/bot_management`, {
+    ...options,
+    method: "PUT",
+    body,
+  });
+
+  return {
+    zone: zone.name,
+    ai_bots_protection: result?.ai_bots_protection ?? target,
+    previous: current.ai_bots_protection,
+    help: [`Run \`${BIN} security check https://${zone.name}/ --user-agent GPTBot\` to confirm`],
+  };
 }
 
 async function show(argv) {
@@ -257,13 +330,14 @@ async function check(argv) {
 
 export const securityCommand = makeDispatcher(
   "security",
-  { show, rules, check },
+  { show, rules, check, "ai-bots": aiBots },
   {
     fallback: "show",
     summary: {
       show: "Bot protection, security level, and challenge settings",
       rules: "List custom WAF rules",
       check: "Probe a URL as a non-browser client and explain what blocks it",
+      "ai-bots": "Turn AI scraper/crawler blocking on or off (idempotent)",
     },
   },
 );

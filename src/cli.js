@@ -25,7 +25,7 @@ const TOP_LEVEL_HELP = `${encode({
     dns: "list, get, set, delete",
     cache: "purge",
     email: "list, addresses, route, catch-all, delete",
-    security: "show, rules, check",
+    security: "show, rules, check, ai-bots",
     setup: "hooks, status, uninstall",
   },
   globals: {
