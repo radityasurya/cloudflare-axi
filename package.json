@@ -30,7 +30,9 @@
     "node": ">=20"
   },
   "scripts": {
-    "test": "node --test \"test/*.test.js\""
+    "test": "node --test \"test/*.test.js\"",
+    "build:skill": "node scripts/build-skill.mjs",
+    "check:skill": "node scripts/build-skill.mjs --check"
   },
   "dependencies": {
     "@toon-format/toon": "^4.1.1",

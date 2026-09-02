@@ -1,5 +1,11 @@
 <h1 align="center">cloudflare-axi</h1>
 
+<p align="center">
+  <a href="https://www.npmjs.com/package/cloudflare-axi"><img alt="npm" src="https://img.shields.io/npm/v/cloudflare-axi?style=flat-square" /></a>
+  <a href="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-blue?style=flat-square"><img alt="Platform" src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-blue?style=flat-square" /></a>
+  <a href="https://axi.md"><img alt="AXI" src="https://img.shields.io/badge/built%20with-AXI-black?style=flat-square" /></a>
+</p>
+
 <h3 align="center">Cloudflare CLI for agents.</h3>
 
 Manage Cloudflare **zones, DNS records, edge cache, and Email Routing** from the shell,
@@ -8,6 +14,26 @@ designed with [AXI](https://axi.md) (Agent eXperience Interface).
 Talks to the Cloudflare API v4 directly — no `wrangler`, no Bun, no MCP server. One
 scoped API token is the entire dependency footprint, plus [`axi-sdk-js`](https://www.npmjs.com/package/axi-sdk-js)
 for the shared AXI runtime.
+
+## Why
+
+Cloudflare has no single official CLI for this surface — `wrangler` is scoped to the
+developer platform and cannot touch DNS. So agents fall back to `curl` against
+`api.cloudflare.com`, re-deriving auth, pagination, and error handling every time.
+
+Three things that costs them, which this fixes:
+
+- **Truncated listings that look complete.** `/zones` and Email Routing rules cap `per_page`
+  at 50. A request for 100 returns 50 and no indication it was clipped. `cloudflare-axi`
+  pages transparently and reports `count: N of M total`.
+- **Read-then-write round trips.** `dns set` and `email route` are declarative: create if
+  absent, patch only what drifted, no-op when already correct. One call instead of three.
+- **Wrong-record writes.** A name with several records of the same type is ambiguous;
+  raw API calls happily patch the first hit. This stops and lists the record ids.
+
+Endpoint shapes are verified against
+[Cloudflare's published OpenAPI schema](https://github.com/cloudflare/api-schemas), not
+recalled — see [AGENTS.md](AGENTS.md).
 
 ## Quick Start
 
@@ -91,6 +117,30 @@ cloudflare-axi email delete hi
 cloudflare-axi update --check                   # newer release available?
 ```
 
+### Commands
+
+| Command | Subcommands | Purpose |
+| --- | --- | --- |
+| *(none)* | — | Dashboard: zones this token can see |
+| `zone` | `list`, `view` | Zones, nameservers, record counts |
+| `dns` | `list`, `get`, `set`, `delete` | DNS records, idempotent writes |
+| `cache` | `purge` | Edge cache purging |
+| `email` | `list`, `addresses`, `route`, `catch-all`, `delete` | Email Routing |
+| `setup` | `hooks`, `status`, `uninstall` | Agent session integration |
+
+Every subcommand takes `--help` for a concise reference with its flags and examples.
+
+### Global flags
+
+| Flag | Effect |
+| --- | --- |
+| `--zone <name\|id>` | Target a zone by name or id (or `CLOUDFLARE_ZONE`) |
+| `--account <id>` | Target an account when the token spans several |
+| `--help` | Print the command reference; always allowed, never reported as unknown |
+
+Flags must come **after** the command (`cloudflare-axi dns list --type A`, not
+`cloudflare-axi --type A dns list`).
+
 ### Choosing the zone
 
 Commands that act on a zone resolve it in this order:
@@ -125,12 +175,18 @@ candidate zones listed rather than guessing.
 
 ```sh
 npm install
-npm test          # node:test, no framework, fixture-backed — no network
+npm test              # node:test, no framework, no network
+npm run build:skill   # regenerate skills/cloudflare-axi/SKILL.md from src/skill.js
+npm run check:skill   # CI drift check
 node bin/cloudflare-axi.js --help
 ```
 
-The tests stub `fetch` with a fake Cloudflare, so the suite asserts the exact request
-bodies sent for DNS patches, cache purges, and email rules without touching the network.
+The tests stub `fetch` with a route table standing in for Cloudflare, so the suite asserts
+the exact request bodies sent for DNS patches, cache purges, and email rules — not merely
+that a call happened. No token or account required.
+
+See [AGENTS.md](AGENTS.md) for architecture and sharp-edge notes, and
+[CONTRIBUTING.md](CONTRIBUTING.md) for the release process.
 
 ## License
 
