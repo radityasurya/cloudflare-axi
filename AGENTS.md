@@ -87,9 +87,24 @@ blocks hand-edits under `skills/`.
 ## Release process
 
 Releases are cut by release-please from conventional commits on `main`; merging the bot's
-release PR triggers `npm publish` via `.github/workflows/release-please.yml` (needs an
-`NPM_TOKEN` secret). Do not hand-edit `CHANGELOG.md` or `.release-please-manifest.json` — a
-guard workflow blocks PRs that touch them.
+release PR triggers `npm publish` via `.github/workflows/release-please.yml`. Do not
+hand-edit `CHANGELOG.md` or `.release-please-manifest.json` — a guard workflow blocks PRs
+that touch them.
+
+Publishing uses **npm trusted publishing (OIDC)**, not a stored token. The workflow's
+`id-token: write` permission lets npm verify the workflow's identity directly, so there is
+no `NPM_TOKEN` secret to rotate or leak, and provenance is attested automatically. The npm
+account is passkey-protected with `two-factor auth: auth-and-writes`, so any token capable
+of unattended publishing would be a deliberate hole in that 2FA.
+
+The trust relationship is registered once, against the **workflow filename**:
+
+```sh
+npm trust github cloudflare-axi --repo radityasurya/cloudflare-axi --file release-please.yml --allow-publish
+```
+
+Renaming `release-please.yml` therefore breaks publishing until the relationship is
+re-registered. `npm trust list cloudflare-axi` shows the current configuration.
 
 ## Testing without a Cloudflare account
 
@@ -112,3 +127,22 @@ Two traps stacked here, both surfaced only on Node 20 in CI:
 Naming the directory `tests` fixes both: `tests/*.test.js` still matches the default
 `**/*.test.js` pattern by name, while `tests/helpers.js` and `tests/fixtures/**` match none
 of the default patterns and stay out of the run. Do not rename it back to `test/`.
+
+## Bot management writes echo the full config (`src/commands/security.js`)
+
+`security ai-bots` reads the current `/zones/{id}/bot_management` object, drops the fields
+Cloudflare computes (`using_latest_model`, `is_robots_txt_managed`,
+`ai_bots_migration_opt_out`), changes one field, and PUTs the whole thing back. The
+endpoint's schema declares four `oneOf` variants with no required properties, which reads
+as "partial updates accepted" — but echoing the full object is correct whether the endpoint
+patches or replaces, and a wrong guess silently resets twelve unrelated protections on a
+live zone. Verified on a real zone: all 13 fields survived the write with only
+`ai_bots_protection` changed.
+
+## Diagnosis ranks causes, and the ranking is load-bearing
+
+`security check` reports `browser_check` and `security_level` as *contributing*, never as
+the verdict. Measured across real zones, both are `on`/`medium` almost everywhere —
+including zones that serve AI crawlers perfectly well — so leading with either buries the
+setting that actually differs. `ai_bots_protection` was the real cause on three zones while
+`browser_check` was identical on all four, including the one that worked.
