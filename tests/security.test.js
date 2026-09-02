@@ -56,9 +56,16 @@ test("check explains a JS challenge instead of just reporting 403", async () => 
 
   assert.equal(output.probe.status, 403);
   assert.equal(output.probe["cf-mitigated"], "challenge");
-  assert.match(output.verdict, /JS challenge/);
+  // The verdict must lead with the setting that actually differs between zones.
+  // browser_check and security_level are on almost everywhere, including zones
+  // that serve bots fine, so they are contributing context — not the cause.
   assert.match(output.verdict, /bot_fight_mode/);
-  assert.match(output.verdict, /browser_check/);
+  assert.doesNotMatch(output.verdict, /browser_check/);
+  assert.match(output.contributing, /browser_check/);
+  assert.ok(
+    output.help.some((h) => h.includes("Bot Fight Mode")),
+    "the fix must name the control that is actually active",
+  );
 });
 
 test("check reports success without touching zone settings when nothing blocks", async () => {
@@ -85,4 +92,21 @@ test("rules states the zero explicitly when no custom ruleset exists", async () 
   mockCloudflare({ ...zoneLookup });
   const output = await securityCommand(["rules", "--zone", "example.com"]);
   assert.match(output.rules, /^0 custom WAF rules/);
+});
+
+test("an AI-blocking zone is diagnosed by name, not as a generic challenge", async () => {
+  mockCloudflare({
+    ...zoneLookup,
+    "PROBE https://example.com/": { status: 403, headers: { server: "cloudflare" } },
+    [`GET /zones/${zone.id}/settings`]: SETTINGS,
+    [`GET /zones/${zone.id}/bot_management`]: { fight_mode: false, ai_bots_protection: "block" },
+  });
+  const output = await securityCommand(["check", "https://example.com/", "--zone", "example.com"]);
+
+  assert.match(output.verdict, /AI\/crawler blocking is on/);
+  assert.ok(
+    output.help.some((h) => h.includes("Block AI Scrapers and Crawlers")),
+    "the fix must point at the AI toggle, not Bot Fight Mode",
+  );
+  assert.ok(!output.help.some((h) => h.includes("Bot Fight Mode")));
 });

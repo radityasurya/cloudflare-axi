@@ -205,25 +205,53 @@ async function check(argv) {
     posture = { zone: `settings unreadable: ${error.message}` };
   }
 
+  // Rank by explanatory power, most specific first. browser_check and
+  // security_level are on for most zones including ones that serve bots fine,
+  // so leading with either buries the setting that actually differs.
   const causes = [];
-  if (mitigated === "challenge") {
+  const contributing = [];
+  const botFlags = posture.bots ?? "";
+
+  if (/ai_bots_protection=|crawler_protection=/.test(botFlags)) {
+    causes.push(`AI/crawler blocking is on (${botFlags}) — it 403s known AI user-agents by name`);
+  }
+  if (/bot_fight_mode|sbfm_definitely_automated/.test(botFlags)) {
+    causes.push(`bot protection scores this client as automated (${botFlags})`);
+  }
+  if (posture.security_level === "under_attack") {
+    causes.push("security_level is under_attack, which challenges every visitor");
+  }
+  if (mitigated === "challenge" && causes.length === 0) {
     causes.push("Cloudflare is serving a JS challenge; clients without a JS engine can never pass");
   }
-  if (posture.security_level === "under_attack") causes.push("security_level is under_attack");
-  if (posture.browser_check === "on") causes.push("browser_check (Browser Integrity Check) is on");
-  if (posture.bots && posture.bots !== "none active" && !posture.bots.startsWith("unreadable")) {
-    causes.push(`bot protection active: ${posture.bots}`);
+  if (posture.browser_check === "on") {
+    contributing.push("browser_check is on (challenges requests whose headers look non-browser)");
   }
+  if (posture.security_level && posture.security_level !== "under_attack") {
+    contributing.push(`security_level is ${posture.security_level} (challenges above a threat score)`);
+  }
+
+  const fixes = [];
+  if (/ai_bots_protection=|crawler_protection=/.test(botFlags)) {
+    fixes.push("Security > Bots > Block AI Scrapers and Crawlers — turn it off to allow AI user-agents");
+  }
+  if (/bot_fight_mode|sbfm_/.test(botFlags)) {
+    fixes.push("Security > Bots — turn off Bot Fight Mode, or set 'definitely automated' to Allow");
+  }
+  if (causes.length === 0) {
+    fixes.push(`Run \`${BIN} security rules --zone ${posture.zone ?? "<zone>"}\` — a custom WAF rule may match`);
+    fixes.push("A transient challenge can also come from the client IP's threat score; retry later to tell them apart");
+  }
+  fixes.push("Or add a WAF skip rule for the clients you want to allow");
 
   return {
     probe,
     ...posture,
-    verdict: causes.length ? causes.join("; ") : "blocked, but no zone setting explains it",
-    help: [
-      ...(causes.length ? [] : [`Run \`${BIN} security rules --zone ${posture.zone ?? "<zone>"}\` — a custom WAF rule may match`]),
-      "Turn off Bot Fight Mode under Security > Bots to let non-browser clients through",
-      "Or add a WAF skip rule for the clients you want to allow",
-    ],
+    verdict: causes.length
+      ? causes.join("; ")
+      : "blocked, but no persistent zone setting explains it",
+    ...(contributing.length ? { contributing: contributing.join("; ") } : {}),
+    help: fixes,
   };
 }
 
