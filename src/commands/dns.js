@@ -3,6 +3,7 @@ import { cf, cfList, dnsPageMax, resolveZone } from "../api.js";
 import { BIN, helpFor, makeDispatcher, parse, positiveInt, required, wantsHelp } from "../args.js";
 
 const ID_RE = /^[0-9a-f]{32}$/i;
+const MULTI_VALUE = new Set(["TXT", "MX", "SRV", "CAA", "NS"]);
 const PROXYABLE = new Set(["A", "AAAA", "CNAME"]);
 
 /** `www` -> `www.example.com`; `@` or the bare apex -> `example.com`. */
@@ -198,8 +199,13 @@ async function set(argv) {
 
   const zone = await resolveZone(values.zone);
   const target = fqdn(name, zone.name);
-  const existing = await matching(zone, name, type);
   const desired = desiredFrom(values, content);
+  // Several records of these types at one name is normal, not a mistake: a zone
+  // carries SPF beside a site-verification TXT, and five MX beside each other.
+  // Matching on name+type alone would patch the SPF record into a verification
+  // token, so for these the content is part of the record's identity.
+  const all = await matching(zone, name, type);
+  const existing = MULTI_VALUE.has(type) ? all.filter((r) => r.content === content) : all;
 
   if (existing.length > 1) {
     throw new AxiError(

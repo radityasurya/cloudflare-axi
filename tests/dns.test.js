@@ -131,3 +131,51 @@ test("list reports the grand total, not just the page", async () => {
   assert.equal(output.count, "1 of 42 total");
   assert.ok(output.help.some((line) => line.includes("--limit 42")));
 });
+
+const TXT_ZONE = { ...zoneLookup };
+const SPF = {
+  id: "s".repeat(32),
+  name: "example.com",
+  type: "TXT",
+  content: "v=spf1 include:spf.brevo.com mx ~all",
+  ttl: 1,
+};
+
+test("a second TXT at the same name is added, not patched over the first", async () => {
+  const calls = mockCloudflare({
+    ...TXT_ZONE,
+    [`GET /zones/${zone.id}/dns_records`]: page([SPF]),
+    [`POST /zones/${zone.id}/dns_records`]: ({ body }) => ({ ...body, id: "n".repeat(32) }),
+  });
+  const output = await dnsCommand(["set", "@", "TXT", "google-site-verification=abc"]);
+
+  assert.equal(output.created, true);
+  // Patching here would silently destroy the zone's SPF record.
+  assert.equal(calls.filter((c) => c.method === "PATCH").length, 0);
+  assert.equal(calls.find((c) => c.method === "POST").body.content, "google-site-verification=abc");
+});
+
+test("re-setting an identical TXT is still a no-op", async () => {
+  const calls = mockCloudflare({
+    ...TXT_ZONE,
+    [`GET /zones/${zone.id}/dns_records`]: page([SPF]),
+  });
+  const output = await dnsCommand(["set", "@", "TXT", "v=spf1 include:spf.brevo.com mx ~all"]);
+
+  assert.equal(output.unchanged, true);
+  assert.equal(calls.filter((c) => c.method === "POST" || c.method === "PATCH").length, 0);
+});
+
+test("an A record with one existing value still updates in place", async () => {
+  const A = { id: "a".repeat(32), name: "example.com", type: "A", content: "203.0.113.1", ttl: 1 };
+  const calls = mockCloudflare({
+    ...TXT_ZONE,
+    [`GET /zones/${zone.id}/dns_records`]: page([A]),
+    [`PATCH /zones/${zone.id}/dns_records/${A.id}`]: ({ body }) => ({ ...A, ...body }),
+  });
+  const output = await dnsCommand(["set", "@", "A", "203.0.113.9"]);
+
+  // Single-valued types must keep the old behaviour: one A record, patched.
+  assert.equal(output.updated, "content");
+  assert.equal(calls.filter((c) => c.method === "POST").length, 0);
+});
