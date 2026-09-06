@@ -7,13 +7,14 @@ import { BIN } from "./args.js";
 import { cacheCommand } from "./commands/cache.js";
 import { dnsCommand } from "./commands/dns.js";
 import { emailCommand } from "./commands/email.js";
+import { redirectCommand } from "./commands/redirect.js";
 import { securityCommand } from "./commands/security.js";
 import { setupCommand } from "./commands/setup.js";
 import { zoneCommand } from "./commands/zone.js";
 import { VERSION } from "./version.js";
 
 export const DESCRIPTION =
-  "Manage Cloudflare zones, DNS records, edge cache, and Email Routing";
+  "Manage Cloudflare zones, DNS records, redirect rules, edge cache, and Email Routing";
 
 const HOME_ZONE_LIMIT = 10;
 
@@ -21,8 +22,9 @@ const TOP_LEVEL_HELP = `${encode({
   usage: `${BIN} [command] [args] [flags]`,
   commands: {
     "(none)": "dashboard — zones this token can see",
-    zone: "list, view",
+    zone: "list, view, create",
     dns: "list, get, set, delete",
+    redirect: "list, set, delete",
     cache: "purge",
     email: "list, addresses, route, catch-all, delete",
     security: "show, rules, check, ai-bots",
@@ -37,6 +39,7 @@ const TOP_LEVEL_HELP = `${encode({
     `${BIN}`,
     `${BIN} dns list --zone example.com`,
     `${BIN} dns set www A 203.0.113.10 --proxied`,
+    `${BIN} redirect set https://new.example --zone old.example`,
     `${BIN} email route hi me@gmail.com`,
     `${BIN} cache purge --all`,
     `${BIN} security check https://example.com/`,
@@ -78,6 +81,7 @@ async function home() {
     help: [
       `Run \`${BIN} dns list --zone <name>\` to see a zone's records`,
       `Run \`${BIN} dns set <name> <type> <content> --zone <name>\` to create or update a record`,
+      `Run \`${BIN} redirect set <target-url> --zone <name>\` to point a domain elsewhere`,
       `Run \`${BIN} email list --zone <name>\` for Email Routing rules`,
       `Run \`${BIN} cache purge --all --zone <name>\` to clear the edge cache`,
       ...(items.length < total ? [`Run \`${BIN} zone list --limit ${total}\` for all ${total}`] : []),
@@ -94,6 +98,7 @@ export async function main() {
     commands: {
       zone: zoneCommand,
       dns: dnsCommand,
+      redirect: redirectCommand,
       cache: cacheCommand,
       email: emailCommand,
       security: securityCommand,

@@ -1,7 +1,7 @@
 ---
 name: cloudflare-axi
 description: >
-  Manage Cloudflare through the cloudflare-axi CLI — zones, DNS records, edge cache purging, and Email Routing. Use whenever a task touches Cloudflare: inspecting or changing DNS, pointing a subdomain at a host, purging cached assets after a deploy, or forwarding email on a domain.
+  Manage Cloudflare through the cloudflare-axi CLI — zones, DNS records, redirect rules, edge cache purging, and Email Routing. Use whenever a task touches Cloudflare: adding a domain, inspecting or changing DNS, pointing a subdomain at a host, redirecting a whole domain to another one, purging cached assets after a deploy, or forwarding email on a domain.
 user-invocable: false
 metadata:
   hermes:
@@ -25,10 +25,13 @@ and how to fix it — surface that rather than guessing at credentials.
 ```sh
 npx -y cloudflare-axi                                # dashboard: zones this token can see
 npx -y cloudflare-axi zone list
+npx -y cloudflare-axi zone create example.com
 npx -y cloudflare-axi dns list --zone example.com
 npx -y cloudflare-axi dns get www
 npx -y cloudflare-axi dns set www A 203.0.113.10 --proxied
 npx -y cloudflare-axi dns delete old --type A
+npx -y cloudflare-axi redirect list --zone old.example
+npx -y cloudflare-axi redirect set https://new.example --zone old.example
 npx -y cloudflare-axi cache purge --all
 npx -y cloudflare-axi email list
 npx -y cloudflare-axi email route hi me@gmail.com
@@ -46,6 +49,13 @@ target zone when the token can see more than one.
   absent, patch only what drifted, exit 0 as a no-op when it already matches. Do not
   read-then-write.
 - **Deletes of absent things are no-ops**, not errors.
+- **Redirect writes never drop the other rules.** Cloudflare replaces the whole ruleset on
+  every write, so `redirect set` and `redirect delete` read the current rules, change one,
+  and send them all back. Never PUT the phase entrypoint by hand.
+- **One redirect per match expression.** Re-running `redirect set` with a new target
+  retargets the existing rule rather than stacking a second, unreachable one behind it.
+- **A redirect-only domain still needs a DNS record.** Point the apex at a proxied
+  placeholder (`192.0.2.1`) — the rule fires at the edge and the origin is never contacted.
 - **Never guesses between duplicates.** If a name has several records, `set` and `delete`
   stop and list the record ids rather than picking one.
 - **Totals, not pages.** Lists report `count: N of M total`; trust the total instead of

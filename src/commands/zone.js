@@ -1,5 +1,6 @@
-import { cf, cfList, resolveZone } from "../api.js";
-import { BIN, helpFor, makeDispatcher, parse, positiveInt, wantsHelp } from "../args.js";
+import { AxiError } from "axi-sdk-js";
+import { cf, cfList, resolveAccountId, resolveZone } from "../api.js";
+import { BIN, helpFor, makeDispatcher, parse, positiveInt, required, wantsHelp } from "../args.js";
 
 const HELP = {
   list: helpFor({
@@ -15,6 +16,13 @@ const HELP = {
     usage: `${BIN} zone view [<name>] [--zone <name|id>]`,
     flags: { "--zone": "Zone to target when no positional name is given" },
     examples: [`${BIN} zone view example.com`, `${BIN} zone view --zone example.com`],
+  }),
+  create: helpFor({
+    command: "zone create",
+    description: "Add a domain to Cloudflare and print the nameservers to set at the registrar",
+    usage: `${BIN} zone create <name> [--account <id>]`,
+    flags: { "--account": "Account to create it under, when the token spans several" },
+    examples: [`${BIN} zone create example.com`],
   }),
 };
 
@@ -70,14 +78,54 @@ async function view(argv) {
   };
 }
 
+async function create(argv) {
+  if (wantsHelp(argv)) return HELP.create;
+  const { values, positionals } = parse(argv, { command: "zone create" });
+  const name = required(positionals[0], "<name>", "zone create", `${BIN} zone create example.com`);
+  if (!/^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(name)) {
+    throw new AxiError(`${name} is not a domain name`, "VALIDATION_ERROR", [
+      "Pass the apex domain, without a scheme or path: `example.com`",
+    ]);
+  }
+
+  // Adding a zone that is already on the account is the common re-run, and the
+  // nameservers are the whole point of the output — so report them, not a 1061.
+  const { items } = await cfList("/zones", { query: { name }, limit: 1 });
+  if (items.length > 0) {
+    const zone = items[0];
+    return {
+      zone: { name: zone.name, id: zone.id, status: zone.status },
+      unchanged: true,
+      nameservers: (zone.name_servers ?? []).join(" "),
+      note: `${name} is already on this account (no-op)`,
+    };
+  }
+
+  const account = await resolveAccountId({ accountId: values.account });
+  const { result } = await cf("/zones", {
+    method: "POST",
+    body: { name, account: { id: account }, type: "full" },
+  });
+  return {
+    zone: { name: result.name, id: result.id, status: result.status },
+    created: true,
+    nameservers: (result.name_servers ?? []).join(" "),
+    help: [
+      `Point the domain at those nameservers at its registrar, then \`${BIN} zone view ${name}\``,
+      `The zone stays \`pending\` until Cloudflare sees the delegation`,
+    ],
+  };
+}
+
 export const zoneCommand = makeDispatcher(
   "zone",
-  { list, view },
+  { list, view, create },
   {
     fallback: "list",
     summary: {
       list: "List the zones this token can see",
       view: "Show one zone with nameservers and record count",
+      create: "Add a domain and print its nameservers",
     },
   },
 );
