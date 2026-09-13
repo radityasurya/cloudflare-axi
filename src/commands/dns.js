@@ -4,6 +4,14 @@ import { BIN, helpFor, makeDispatcher, parse, positiveInt, required, wantsHelp }
 
 const ID_RE = /^[0-9a-f]{32}$/i;
 const MULTI_VALUE = new Set(["TXT", "MX", "SRV", "CAA", "NS"]);
+
+// A few TXT payloads are singletons by their own specification: one SPF record
+// and one DMARC record per name. RFC 7208 section 4.5 makes a second SPF record
+// a permerror, so receivers fail *both* — appending one is never what a caller
+// meant. Match these on their version prefix so `set` replaces the policy in
+// place instead of adding a rival to it.
+const SINGLETON_TXT = [/^"?v=spf1(\s|"|$)/i, /^"?v=DMARC1(\s*;|\s|"|$)/i];
+const singletonTxt = (content) => SINGLETON_TXT.find((pattern) => pattern.test(content));
 const PROXYABLE = new Set(["A", "AAAA", "CNAME"]);
 
 /** `www` -> `www.example.com`; `@` or the bare apex -> `example.com`. */
@@ -205,7 +213,12 @@ async function set(argv) {
   // Matching on name+type alone would patch the SPF record into a verification
   // token, so for these the content is part of the record's identity.
   const all = await matching(zone, name, type);
-  const existing = MULTI_VALUE.has(type) ? all.filter((r) => r.content === content) : all;
+  const singleton = type === "TXT" ? singletonTxt(content) : undefined;
+  const existing = !MULTI_VALUE.has(type)
+    ? all
+    : singleton
+      ? all.filter((record) => singleton.test(record.content))
+      : all.filter((record) => record.content === content);
 
   if (existing.length > 1) {
     throw new AxiError(

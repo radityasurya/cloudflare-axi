@@ -179,3 +179,61 @@ test("an A record with one existing value still updates in place", async () => {
   assert.equal(output.updated, "content");
   assert.equal(calls.filter((c) => c.method === "POST").length, 0);
 });
+
+test("a different SPF replaces the existing one instead of adding a rival", async () => {
+  const calls = mockCloudflare({
+    ...TXT_ZONE,
+    [`GET /zones/${zone.id}/dns_records`]: page([SPF]),
+    [`PATCH /zones/${zone.id}/dns_records/${SPF.id}`]: ({ body }) => ({ ...SPF, ...body }),
+  });
+  const output = await dnsCommand([
+    "set",
+    "@",
+    "TXT",
+    "v=spf1 include:spf.brevo.com include:amazonses.com mx ~all",
+  ]);
+
+  // Two SPF records at one name is an RFC 7208 permerror: receivers fail both.
+  assert.notEqual(output.created, true);
+  assert.equal(calls.filter((c) => c.method === "POST").length, 0);
+  assert.match(output.record.content, /amazonses\.com/);
+});
+
+test("a different DMARC replaces the existing one", async () => {
+  const DMARC = {
+    id: "d".repeat(32),
+    name: "_dmarc.example.com",
+    type: "TXT",
+    content: "v=DMARC1; p=none",
+    ttl: 1,
+  };
+  const calls = mockCloudflare({
+    ...TXT_ZONE,
+    [`GET /zones/${zone.id}/dns_records`]: page([DMARC]),
+    [`PATCH /zones/${zone.id}/dns_records/${DMARC.id}`]: ({ body }) => ({ ...DMARC, ...body }),
+  });
+  await dnsCommand(["set", "_dmarc", "TXT", "v=DMARC1; p=quarantine; rua=mailto:a@example.com"]);
+
+  assert.equal(calls.filter((c) => c.method === "POST").length, 0);
+});
+
+test("SPF beside a verification TXT patches only the SPF", async () => {
+  const VERIFY = {
+    id: "v".repeat(32),
+    name: "example.com",
+    type: "TXT",
+    content: "google-site-verification=abc",
+    ttl: 1,
+  };
+  const calls = mockCloudflare({
+    ...TXT_ZONE,
+    [`GET /zones/${zone.id}/dns_records`]: page([VERIFY, SPF]),
+    [`PATCH /zones/${zone.id}/dns_records/${SPF.id}`]: ({ body }) => ({ ...SPF, ...body }),
+  });
+  await dnsCommand(["set", "@", "TXT", "v=spf1 include:amazonses.com ~all"]);
+
+  // The verification token must survive untouched.
+  const patched = calls.filter((c) => c.method === "PATCH");
+  assert.equal(patched.length, 1);
+  assert.ok(patched[0].path.endsWith(SPF.id), "the SPF record is the one patched");
+});
