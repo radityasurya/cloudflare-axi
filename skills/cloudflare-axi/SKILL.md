@@ -40,6 +40,8 @@ npx -y cloudflare-axi email route hi me@gmail.com
 npx -y cloudflare-axi email catch-all --drop
 npx -y cloudflare-axi security
 npx -y cloudflare-axi security check https://example.com/
+npx -y cloudflare-axi security bot-fight off
+npx -y cloudflare-axi security level essentially_off
 ```
 
 Every command takes `--help` for a concise reference, and `--zone <name>` to pick the
@@ -68,6 +70,7 @@ target zone when the token can see more than one.
 - **Diagnosing a blocked fetch.** When a site behind Cloudflare returns 403 or an
   unexplained challenge to curl or a crawler, run `security check <url>` — it probes the URL
   and names the responsible setting rather than guessing from the status code.
+- **Security toggles are idempotent.** `security bot-fight|js-detection|browser-check <on|off>` and `security level <value>` print before and after, or `unchanged: true` with no write. Bot writes echo the full bot_management object. On a Free plan a WAF skip rule cannot bypass Bot Fight Mode.
 - **Errors are structured** on stdout with a `help` block naming the fix, and an unknown
   flag exits 2 listing the valid flags. Correct the flag — do not drop the filter.
 

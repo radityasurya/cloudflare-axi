@@ -8,6 +8,8 @@ const WAF_PHASE = "http_request_firewall_custom";
 // settings endpoint returns every setting; these are the ones that matter here.
 const CHALLENGE_SETTINGS = ["security_level", "browser_check", "challenge_ttl"];
 
+const LEVELS = ["off", "essentially_off", "low", "medium", "high", "under_attack"];
+
 const HELP = {
   show: helpFor({
     command: "security show",
@@ -29,6 +31,31 @@ const HELP = {
       `${BIN} security ai-bots allow --zone example.com`,
       `${BIN} security ai-bots block --zone example.com`,
     ],
+  }),
+  "bot-fight": helpFor({
+    command: "security bot-fight",
+    description:
+      "Turn Bot Fight Mode on or off (idempotent). On a Free plan a WAF skip rule cannot bypass Bot Fight Mode, so turn it off to let a server client through",
+    usage: `${BIN} security bot-fight <on|off> [--zone <name>]`,
+    examples: [`${BIN} security bot-fight off --zone example.com`],
+  }),
+  "js-detection": helpFor({
+    command: "security js-detection",
+    description: "Turn bot JavaScript detections on or off (idempotent)",
+    usage: `${BIN} security js-detection <on|off> [--zone <name>]`,
+    examples: [`${BIN} security js-detection off --zone example.com`],
+  }),
+  "browser-check": helpFor({
+    command: "security browser-check",
+    description: "Turn Browser Integrity Check on or off (idempotent)",
+    usage: `${BIN} security browser-check <on|off> [--zone <name>]`,
+    examples: [`${BIN} security browser-check off --zone example.com`],
+  }),
+  level: helpFor({
+    command: "security level",
+    description: `Set the security level (${LEVELS.join("|")}) (idempotent)`,
+    usage: `${BIN} security level <${LEVELS.join("|")}> [--zone <name>]`,
+    examples: [`${BIN} security level essentially_off --zone example.com`],
   }),
   check: helpFor({
     command: "security check",
@@ -157,6 +184,113 @@ async function aiBots(argv) {
   };
 }
 
+const BOT_PERM = "Zone > Bot Management: Edit";
+const SETTINGS_PERM = "Zone > Zone Settings: Edit";
+
+/** Run a write; a 401 or 403 names the permission the token lacks. */
+async function writing(permission, call) {
+  try {
+    return await call();
+  } catch (error) {
+    if (error instanceof AxiError && error.code === "AUTH_ERROR") {
+      throw new AxiError(`token lacks permission: ${permission}`, "AUTH_ERROR", [
+        `Add \`${permission}\` to the token at https://dash.cloudflare.com/profile/api-tokens`,
+      ]);
+    }
+    throw error;
+  }
+}
+
+function onOff(positionals, command, example) {
+  const wanted = required(positionals[0], "<on|off>", command, example).toLowerCase();
+  if (wanted !== "on" && wanted !== "off") {
+    throw new AxiError(`unknown value ${positionals[0]}`, "VALIDATION_ERROR", ["Pass `on` or `off`"]);
+  }
+  return wanted === "on";
+}
+
+/** Boolean bot_management field toggle. Same read-merge-write as ai-bots. */
+function botToggle(name, field) {
+  const command = `security ${name}`;
+  return async (argv) => {
+    if (wantsHelp(argv)) return HELP[name];
+    const { values, positionals } = parse(argv, { command });
+    const target = onOff(positionals, command, `${BIN} ${command} off --zone example.com`);
+    const options = { env: process.env };
+    const zone = await resolveZone(values.zone, options);
+    const current = await botManagement(zone.id, options);
+    if (!current) {
+      throw new AxiError("cannot read bot management for this zone", "AUTH_ERROR", [
+        "The token needs Zone > Bot Management: Read to inspect it",
+        `and ${BOT_PERM} to change it`,
+      ]);
+    }
+    const before = Boolean(current[field]);
+    if (before === target) {
+      return { zone: zone.name, [field]: target, unchanged: true, note: `already ${target ? "on" : "off"} (no-op)` };
+    }
+    const body = Object.fromEntries(Object.entries(current).filter(([key]) => !BOT_READONLY.has(key)));
+    body[field] = target;
+    const { result } = await writing(BOT_PERM, () =>
+      cf(`/zones/${zone.id}/bot_management`, { ...options, method: "PUT", body }),
+    );
+    return {
+      zone: zone.name,
+      [field]: result?.[field] ?? target,
+      before,
+      after: result?.[field] ?? target,
+      help: [`Run \`${BIN} security check https://${zone.name}/\` to confirm`],
+    };
+  };
+}
+
+/** Zone setting toggle (browser_check, security_level) via PATCH /settings/{id}. */
+function settingSetter(name, id, allowed, example) {
+  const command = `security ${name}`;
+  return async (argv) => {
+    if (wantsHelp(argv)) return HELP[name];
+    const { values, positionals } = parse(argv, { command });
+    const raw = required(positionals[0], `<${allowed.join("|")}>`, command, example).toLowerCase();
+    if (!allowed.includes(raw)) {
+      throw new AxiError(`unknown value ${positionals[0]}`, "VALIDATION_ERROR", [
+        `Pass one of: ${allowed.join(", ")}`,
+      ]);
+    }
+    const options = { env: process.env };
+    const zone = await resolveZone(values.zone, options);
+    const before = (await settingsMap(zone.id, options))[id];
+    if (before === raw) {
+      return { zone: zone.name, [id]: raw, unchanged: true, note: `already ${raw} (no-op)` };
+    }
+    const { result } = await writing(SETTINGS_PERM, () =>
+      cf(`/zones/${zone.id}/settings/${id}`, { ...options, method: "PATCH", body: { value: raw } }),
+    );
+    const after = result?.value ?? raw;
+    return {
+      zone: zone.name,
+      [id]: after,
+      before: before ?? "unreadable",
+      after,
+      help: [`Run \`${BIN} security check https://${zone.name}/\` to confirm`],
+    };
+  };
+}
+
+const botFight = botToggle("bot-fight", "fight_mode");
+const jsDetection = botToggle("js-detection", "enable_js");
+const browserCheck = settingSetter(
+  "browser-check",
+  "browser_check",
+  ["on", "off"],
+  `${BIN} security browser-check off --zone example.com`,
+);
+const level = settingSetter(
+  "level",
+  "security_level",
+  LEVELS,
+  `${BIN} security level essentially_off --zone example.com`,
+);
+
 async function show(argv) {
   if (wantsHelp(argv)) return HELP.show;
   const { values } = parse(argv, { command: "security show" });
@@ -176,6 +310,10 @@ async function show(argv) {
   return {
     zone: zone.name,
     bots: botPosture(bot),
+    fight_mode: bot ? Boolean(bot.fight_mode) : "unreadable",
+    enable_js: bot ? Boolean(bot.enable_js) : "unreadable",
+    browser_check: settings.browser_check ?? "unreadable",
+    security_level: settings.security_level ?? "unreadable",
     settings: Object.fromEntries(
       CHALLENGE_SETTINGS.map((id) => [id, settings[id] ?? "unreadable"]),
     ),
@@ -309,13 +447,17 @@ async function check(argv) {
     fixes.push("Security > Bots > Block AI Scrapers and Crawlers — turn it off to allow AI user-agents");
   }
   if (/bot_fight_mode|sbfm_/.test(botFlags)) {
-    fixes.push("Security > Bots — turn off Bot Fight Mode, or set 'definitely automated' to Allow");
+    fixes.push(`Run \`${BIN} security bot-fight off --zone ${posture.zone ?? "<zone>"}\`, or in a paid plan set 'definitely automated' to Allow`);
   }
   if (causes.length === 0) {
     fixes.push(`Run \`${BIN} security rules --zone ${posture.zone ?? "<zone>"}\` — a custom WAF rule may match`);
     fixes.push("A transient challenge can also come from the client IP's threat score; retry later to tell them apart");
   }
-  fixes.push("Or add a WAF skip rule for the clients you want to allow");
+  fixes.push(
+    /bot_fight_mode/.test(botFlags)
+      ? "A WAF skip rule does not bypass Bot Fight Mode on a Free plan; turn it off instead"
+      : "Or add a WAF skip rule for the clients you want to allow",
+  );
 
   return {
     probe,
@@ -330,7 +472,16 @@ async function check(argv) {
 
 export const securityCommand = makeDispatcher(
   "security",
-  { show, rules, check, "ai-bots": aiBots },
+  {
+    show,
+    rules,
+    check,
+    "ai-bots": aiBots,
+    "bot-fight": botFight,
+    "js-detection": jsDetection,
+    "browser-check": browserCheck,
+    level,
+  },
   {
     fallback: "show",
     summary: {
@@ -338,6 +489,10 @@ export const securityCommand = makeDispatcher(
       rules: "List custom WAF rules",
       check: "Probe a URL as a non-browser client and explain what blocks it",
       "ai-bots": "Turn AI scraper/crawler blocking on or off (idempotent)",
+      "bot-fight": "Turn Bot Fight Mode on or off (idempotent)",
+      "js-detection": "Turn bot JavaScript detections on or off (idempotent)",
+      "browser-check": "Turn Browser Integrity Check on or off (idempotent)",
+      level: "Set the security level (idempotent)",
     },
   },
 );

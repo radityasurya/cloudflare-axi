@@ -126,6 +126,10 @@ cloudflare-axi security check https://example.com/   # why can't a bot fetch thi
 cloudflare-axi security rules                   # custom WAF rules
 cloudflare-axi security ai-bots allow           # let AI crawlers through (idempotent)
 cloudflare-axi security ai-bots block           # block them again
+cloudflare-axi security bot-fight off           # Bot Fight Mode (a Free-plan skip rule cannot bypass it)
+cloudflare-axi security js-detection off        # bot JavaScript detections
+cloudflare-axi security browser-check off       # Browser Integrity Check
+cloudflare-axi security level essentially_off   # off|essentially_off|low|medium|high|under_attack
 
 cloudflare-axi update --check                   # newer release available?
 ```
@@ -140,7 +144,7 @@ cloudflare-axi update --check                   # newer release available?
 | `cache` | `purge` | Edge cache purging |
 | `r2` | `list`, `get`, `domain list\|add\|remove` | R2 buckets and custom domains |
 | `email` | `list`, `addresses`, `route`, `catch-all`, `delete` | Email Routing |
-| `security` | `show`, `rules`, `check`, `ai-bots` | Bot protection, WAF rules, challenge diagnosis, AI-crawler toggle |
+| `security` | `show`, `rules`, `check`, `ai-bots`, `bot-fight`, `js-detection`, `browser-check`, `level` | Bot protection, WAF rules, challenge diagnosis, bot and challenge toggles (need Bot Management: Edit or Zone Settings: Edit) |
 | `setup` | `hooks`, `status`, `uninstall` | Agent session integration |
 
 Every subcommand takes `--help` for a concise reference with its flags and examples.

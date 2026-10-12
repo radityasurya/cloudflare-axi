@@ -110,3 +110,82 @@ test("an AI-blocking zone is diagnosed by name, not as a generic challenge", asy
   );
   assert.ok(!output.help.some((h) => h.includes("Bot Fight Mode")));
 });
+
+const BOT = { fight_mode: true, enable_js: true, ai_bots_protection: "block", using_latest_model: true };
+const BOT_URL = `/zones/${zone.id}/bot_management`;
+
+test("bot-fight off keeps every other field and reports before and after", async () => {
+  const calls = mockCloudflare({
+    ...zoneLookup,
+    [`GET ${BOT_URL}`]: BOT,
+    [`PUT ${BOT_URL}`]: ({ body }) => body,
+  });
+  const output = await securityCommand(["bot-fight", "off", "--zone", "example.com"]);
+  const put = calls.find((c) => c.method === "PUT");
+  assert.deepEqual(put.body, { fight_mode: false, enable_js: true, ai_bots_protection: "block" });
+  assert.equal(output.before, true);
+  assert.equal(output.after, false);
+});
+
+test("bot-fight on when already on is a no-op", async () => {
+  const calls = mockCloudflare({ ...zoneLookup, [`GET ${BOT_URL}`]: BOT });
+  const output = await securityCommand(["bot-fight", "on", "--zone", "example.com"]);
+  assert.equal(output.unchanged, true);
+  assert.ok(!calls.some((c) => c.method === "PUT"));
+});
+
+test("js-detection toggles enable_js", async () => {
+  const calls = mockCloudflare({
+    ...zoneLookup,
+    [`GET ${BOT_URL}`]: BOT,
+    [`PUT ${BOT_URL}`]: ({ body }) => body,
+  });
+  await securityCommand(["js-detection", "off", "--zone", "example.com"]);
+  assert.equal(calls.find((c) => c.method === "PUT").body.enable_js, false);
+});
+
+test("browser-check off patches the zone setting", async () => {
+  const calls = mockCloudflare({
+    ...zoneLookup,
+    [`GET /zones/${zone.id}/settings`]: SETTINGS,
+    [`PATCH /zones/${zone.id}/settings/browser_check`]: ({ body }) => ({ id: "browser_check", value: body.value }),
+  });
+  const output = await securityCommand(["browser-check", "off", "--zone", "example.com"]);
+  assert.deepEqual(calls.find((c) => c.method === "PATCH").body, { value: "off" });
+  assert.equal(output.before, "on");
+  assert.equal(output.after, "off");
+});
+
+test("level is unchanged when it already matches", async () => {
+  const calls = mockCloudflare({ ...zoneLookup, [`GET /zones/${zone.id}/settings`]: SETTINGS });
+  const output = await securityCommand(["level", "high", "--zone", "example.com"]);
+  assert.equal(output.unchanged, true);
+  assert.ok(!calls.some((c) => c.method === "PATCH"));
+});
+
+test("level rejects a bad value before any write", async () => {
+  const calls = mockCloudflare({ ...zoneLookup });
+  await assert.rejects(() => securityCommand(["level", "paranoid", "--zone", "example.com"]), /unknown value/);
+  assert.ok(!calls.some((c) => c.method === "PATCH"));
+});
+
+test("a 403 on write names the missing permission", async () => {
+  mockCloudflare({
+    ...zoneLookup,
+    [`GET ${BOT_URL}`]: BOT,
+    [`PUT ${BOT_URL}`]: { __status: 403, payload: { success: false, errors: [{ code: 10000, message: "Authentication error" }] } },
+  });
+  await assert.rejects(
+    () => securityCommand(["bot-fight", "off", "--zone", "example.com"]),
+    /Zone > Bot Management: Edit/,
+  );
+  mockCloudflare({
+    ...zoneLookup,
+    [`GET /zones/${zone.id}/settings`]: SETTINGS,
+    [`PATCH /zones/${zone.id}/settings/security_level`]: { __status: 403, payload: { success: false, errors: [{ code: 10000, message: "x" }] } },
+  });
+  await assert.rejects(
+    () => securityCommand(["level", "low", "--zone", "example.com"]),
+    /Zone > Zone Settings: Edit/,
+  );
+});
