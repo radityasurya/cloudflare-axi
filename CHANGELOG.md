@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.4](https://github.com/radityasurya/cloudflare-axi/compare/v0.1.3...v0.1.4) (2026-10-12)
+
+
+### Features
+
+* **security:** toggle Bot Fight Mode, JS detections, browser check and security level ([#8](https://github.com/radityasurya/cloudflare-axi/issues/8)) ([7f4d892](https://github.com/radityasurya/cloudflare-axi/commit/7f4d892ac6e74f5a8e8c7a2ec53776c3625d9666))
+
 ## [0.1.3](https://github.com/radityasurya/cloudflare-axi/compare/v0.1.2...v0.1.3) (2026-10-12)
 
 
