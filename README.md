@@ -61,6 +61,7 @@ Minimum permissions per command group:
 | `zone`    | Zone → Zone → Read                        |
 | `dns`     | Zone → DNS → Edit                         |
 | `cache`   | Zone → Cache Purge → Purge                |
+| `r2`      | Account → Workers R2 Storage → Read (list, get) or Edit (domain add, remove); `domain add` also needs Zone → Zone → Read |
 | `email`   | Zone → Email Routing Rules → Edit, and Account → Email Routing Addresses → Read |
 
 ## Other Ways to Install
@@ -106,6 +107,12 @@ cloudflare-axi cache purge --all
 cloudflare-axi cache purge --url https://example.com/app.css --url https://example.com/app.js
 cloudflare-axi cache purge --prefix https://example.com/assets/
 
+cloudflare-axi r2 list                          # buckets
+cloudflare-axi r2 get jala-assets               # bucket + custom domains
+cloudflare-axi r2 domain list jala-assets
+cloudflare-axi r2 domain add jala-assets assets.example.com --min-tls 1.2
+cloudflare-axi r2 domain remove jala-assets assets.example.com
+
 cloudflare-axi email list                       # rules + routing status + catch-all
 cloudflare-axi email addresses                  # destinations, and whether verified
 cloudflare-axi email route hi me@gmail.com
@@ -131,6 +138,7 @@ cloudflare-axi update --check                   # newer release available?
 | `zone` | `list`, `view` | Zones, nameservers, record counts |
 | `dns` | `list`, `get`, `set`, `delete` | DNS records, idempotent writes |
 | `cache` | `purge` | Edge cache purging |
+| `r2` | `list`, `get`, `domain list\|add\|remove` | R2 buckets and custom domains |
 | `email` | `list`, `addresses`, `route`, `catch-all`, `delete` | Email Routing |
 | `security` | `show`, `rules`, `check`, `ai-bots` | Bot protection, WAF rules, challenge diagnosis, AI-crawler toggle |
 | `setup` | `hooks`, `status`, `uninstall` | Agent session integration |
