@@ -1,6 +1,6 @@
 {
   "name": "cloudflare-axi",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "AXI-compliant Cloudflare CLI — zones, DNS, cache, and Email Routing with token-efficient TOON output",
   "keywords": [
     "axi",

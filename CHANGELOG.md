@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.1.3](https://github.com/radityasurya/cloudflare-axi/compare/v0.1.2...v0.1.3) (2026-10-12)
+
+
+### Features
+
+* **r2:** list buckets and manage custom domains ([#7](https://github.com/radityasurya/cloudflare-axi/issues/7)) ([34e4fda](https://github.com/radityasurya/cloudflare-axi/commit/34e4fda4c0b5461daa8a582124c4bcc065a134d5))
+
+
+### Bug Fixes
+
+* **dns:** replace SPF and DMARC instead of adding a second record ([c61860f](https://github.com/radityasurya/cloudflare-axi/commit/c61860f393a2caf70fb3eeb3f4e093ded183f0a4))
+
 ## [0.1.2](https://github.com/radityasurya/cloudflare-axi/compare/v0.1.1...v0.1.2) (2026-09-13)
 
 
