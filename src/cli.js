@@ -29,7 +29,7 @@ const TOP_LEVEL_HELP = `${encode({
     cache: "purge",
     r2: "list, get, domain list|add|remove",
     email: "list, addresses, route, catch-all, delete",
-    security: "show, rules, check, ai-bots",
+    security: "show, rules, check, ai-bots, bot-fight, js-detection, browser-check, level",
     setup: "hooks, status, uninstall",
   },
   globals: {
