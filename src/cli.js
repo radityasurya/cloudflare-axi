@@ -7,6 +7,7 @@ import { BIN } from "./args.js";
 import { cacheCommand } from "./commands/cache.js";
 import { dnsCommand } from "./commands/dns.js";
 import { emailCommand } from "./commands/email.js";
+import { r2Command } from "./commands/r2.js";
 import { redirectCommand } from "./commands/redirect.js";
 import { securityCommand } from "./commands/security.js";
 import { setupCommand } from "./commands/setup.js";
@@ -26,6 +27,7 @@ const TOP_LEVEL_HELP = `${encode({
     dns: "list, get, set, delete",
     redirect: "list, set, delete",
     cache: "purge",
+    r2: "list, get, domain list|add|remove",
     email: "list, addresses, route, catch-all, delete",
     security: "show, rules, check, ai-bots",
     setup: "hooks, status, uninstall",
@@ -42,6 +44,7 @@ const TOP_LEVEL_HELP = `${encode({
     `${BIN} redirect set https://new.example --zone old.example`,
     `${BIN} email route hi me@gmail.com`,
     `${BIN} cache purge --all`,
+    `${BIN} r2 domain list my-bucket`,
     `${BIN} security check https://example.com/`,
   ],
   help: [`Run \`${BIN} <command> --help\` for a command reference`],
@@ -100,6 +103,7 @@ export async function main() {
       dns: dnsCommand,
       redirect: redirectCommand,
       cache: cacheCommand,
+      r2: r2Command,
       email: emailCommand,
       security: securityCommand,
       setup: setupCommand,

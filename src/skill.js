@@ -9,7 +9,7 @@ import { BIN } from "./args.js";
  */
 export const SKILL_NAME = BIN;
 
-export const SKILL_DESCRIPTION = `Manage Cloudflare through the ${BIN} CLI — zones, DNS records, redirect rules, edge cache purging, and Email Routing. Use whenever a task touches Cloudflare: adding a domain, inspecting or changing DNS, pointing a subdomain at a host, redirecting a whole domain to another one, purging cached assets after a deploy, or forwarding email on a domain.`;
+export const SKILL_DESCRIPTION = `Manage Cloudflare through the ${BIN} CLI — zones, DNS records, redirect rules, edge cache purging, R2 bucket custom domains, and Email Routing. Use whenever a task touches Cloudflare: adding a domain, inspecting or changing DNS, pointing a subdomain at a host, redirecting a whole domain to another one, purging cached assets after a deploy, or forwarding email on a domain.`;
 
 export function renderSkill() {
   return `---
@@ -47,6 +47,8 @@ npx -y ${BIN} dns delete old --type A
 npx -y ${BIN} redirect list --zone old.example
 npx -y ${BIN} redirect set https://new.example --zone old.example
 npx -y ${BIN} cache purge --all
+npx -y ${BIN} r2 list
+npx -y ${BIN} r2 domain add my-bucket assets.example.com
 npx -y ${BIN} email list
 npx -y ${BIN} email route hi me@gmail.com
 npx -y ${BIN} email catch-all --drop
@@ -62,6 +64,7 @@ target zone when the token can see more than one.
 - **Idempotent mutations.** \`dns set\` and \`email route\` declare desired state: create if
   absent, patch only what drifted, exit 0 as a no-op when it already matches. Do not
   read-then-write.
+- **R2 custom domains are idempotent.** \`r2 domain add\` on an attached domain prints its state; \`r2 domain remove\` on an absent one is a no-op. Bucket creation and objects are out of scope. Needs \`Workers R2 Storage: Read\` (reads) or \`Edit\` (writes).
 - **Deletes of absent things are no-ops**, not errors.
 - **Redirect writes never drop the other rules.** Cloudflare replaces the whole ruleset on
   every write, so \`redirect set\` and \`redirect delete\` read the current rules, change one,
