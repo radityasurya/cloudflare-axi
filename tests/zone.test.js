@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { zoneCommand } from "../src/commands/zone.js";
-import { mockCloudflare, page, withToken, zone } from "./helpers.js";
+import { mockCloudflare, page, withToken, zone, zoneLookup } from "./helpers.js";
 
 const NS = ["ada.ns.cloudflare.com", "bob.ns.cloudflare.com"];
 
@@ -40,4 +40,40 @@ test("a URL instead of a domain is rejected before any request", async () => {
     return true;
   });
   assert.equal(calls.length, 0);
+});
+
+test("zone settings show reads one setting", async () => {
+  mockCloudflare({
+    ...zoneLookup,
+    [`GET /zones/${zone.id}/settings/always_use_https`]: { id: "always_use_https", value: "off", editable: true },
+  });
+  const out = await zoneCommand(["settings", "show", "always_use_https"]);
+  assert.equal(out.always_use_https, "off");
+});
+
+test("zone settings set validates, patches, and is idempotent", async () => {
+  const path = `/zones/${zone.id}/settings/min_tls_version`;
+  const calls = mockCloudflare({
+    ...zoneLookup,
+    [`GET ${path}`]: { value: "1.0" },
+    [`PATCH ${path}`]: ({ body }) => ({ value: body.value }),
+  });
+  await assert.rejects(zoneCommand(["settings", "set", "min_tls_version", "9"]), /unknown value/);
+  const out = await zoneCommand(["settings", "set", "min_tls_version", "1.2"]);
+  assert.deepEqual([out.before, out.after], ["1.0", "1.2"]);
+  assert.deepEqual(calls.find((c) => c.method === "PATCH").body, { value: "1.2" });
+
+  mockCloudflare({ ...zoneLookup, [`GET ${path}`]: { value: "1.2" } });
+  assert.equal((await zoneCommand(["settings", "set", "min_tls_version", "1.2"])).unchanged, true);
+});
+
+test("zone settings set passes unknown settings through", async () => {
+  const path = `/zones/${zone.id}/settings/brotli`;
+  const calls = mockCloudflare({
+    ...zoneLookup,
+    [`GET ${path}`]: { value: "off" },
+    [`PATCH ${path}`]: { value: "on" },
+  });
+  await zoneCommand(["settings", "set", "brotli", "on"]);
+  assert.equal(calls.at(-1).method, "PATCH");
 });
