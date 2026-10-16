@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.1.5](https://github.com/radityasurya/cloudflare-axi/compare/v0.1.4...v0.1.5) (2026-10-16)
+
+
+### Features
+
+* **email:** add destination addresses and enable routing on a zone ([39cf945](https://github.com/radityasurya/cloudflare-axi/commit/39cf945f6001078eb1c9b7f8281fdf12c7fb20bf))
+* Turnstile, zone settings, email routing and bot settings commands ([24e8cbd](https://github.com/radityasurya/cloudflare-axi/commit/24e8cbd7b8aacec1a796a5c2b3c8225e190f36e3))
+* **turnstile:** list, create and delete widgets; keep secrets out of output ([ee90794](https://github.com/radityasurya/cloudflare-axi/commit/ee907945ac5c2d7075c14e0642f7363bc1b0ef7d))
+* **zone:** show and set zone settings with validation for common ones ([3d742ca](https://github.com/radityasurya/cloudflare-axi/commit/3d742ca536b84f167cd1ce21fafa239498156fa1))
+
 ## [0.1.4](https://github.com/radityasurya/cloudflare-axi/compare/v0.1.3...v0.1.4) (2026-10-12)
 
 
