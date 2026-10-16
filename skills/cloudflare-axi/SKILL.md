@@ -38,6 +38,8 @@ npx -y cloudflare-axi r2 domain add my-bucket assets.example.com
 npx -y cloudflare-axi email list
 npx -y cloudflare-axi email route hi me@gmail.com
 npx -y cloudflare-axi email catch-all --drop
+npx -y cloudflare-axi zone settings set ssl strict
+npx -y cloudflare-axi turnstile list
 npx -y cloudflare-axi security
 npx -y cloudflare-axi security check https://example.com/
 npx -y cloudflare-axi security bot-fight off

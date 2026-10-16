@@ -11,6 +11,7 @@ import { r2Command } from "./commands/r2.js";
 import { redirectCommand } from "./commands/redirect.js";
 import { securityCommand } from "./commands/security.js";
 import { setupCommand } from "./commands/setup.js";
+import { turnstileCommand } from "./commands/turnstile.js";
 import { zoneCommand } from "./commands/zone.js";
 import { VERSION } from "./version.js";
 
@@ -23,13 +24,14 @@ const TOP_LEVEL_HELP = `${encode({
   usage: `${BIN} [command] [args] [flags]`,
   commands: {
     "(none)": "dashboard — zones this token can see",
-    zone: "list, view, create",
+    zone: "list, view, create, settings show|set",
     dns: "list, get, set, delete",
     redirect: "list, set, delete",
     cache: "purge",
     r2: "list, get, domain list|add|remove",
-    email: "list, addresses, route, catch-all, delete",
+    email: "list, addresses [add], enable, route, catch-all, delete",
     security: "show, rules, check, ai-bots, bot-fight, js-detection, browser-check, level",
+    turnstile: "list, create, delete",
     setup: "hooks, status, uninstall",
   },
   globals: {
@@ -44,6 +46,8 @@ const TOP_LEVEL_HELP = `${encode({
     `${BIN} redirect set https://new.example --zone old.example`,
     `${BIN} email route hi me@gmail.com`,
     `${BIN} cache purge --all`,
+    `${BIN} zone settings set ssl strict`,
+    `${BIN} turnstile create contact --domain example.com --secret-file .turnstile.env`,
     `${BIN} r2 domain list my-bucket`,
     `${BIN} security check https://example.com/`,
   ],
@@ -87,6 +91,8 @@ async function home() {
       `Run \`${BIN} redirect set <target-url> --zone <name>\` to point a domain elsewhere`,
       `Run \`${BIN} email list --zone <name>\` for Email Routing rules`,
       `Run \`${BIN} cache purge --all --zone <name>\` to clear the edge cache`,
+      `Run \`${BIN} zone settings show <setting> --zone <name>\` to read a zone setting`,
+      `Run \`${BIN} turnstile list\` for Turnstile widgets`,
       ...(items.length < total ? [`Run \`${BIN} zone list --limit ${total}\` for all ${total}`] : []),
     ],
   };
@@ -106,6 +112,7 @@ export async function main() {
       r2: r2Command,
       email: emailCommand,
       security: securityCommand,
+      turnstile: turnstileCommand,
       setup: setupCommand,
     },
   });

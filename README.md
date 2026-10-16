@@ -62,7 +62,9 @@ Minimum permissions per command group:
 | `dns`     | Zone → DNS → Edit                         |
 | `cache`   | Zone → Cache Purge → Purge                |
 | `r2`      | Account → Workers R2 Storage → Read (list, get) or Edit (domain add, remove); `domain add` also needs Zone → Zone → Read |
-| `email`   | Zone → Email Routing Rules → Edit, and Account → Email Routing Addresses → Read |
+| `email`   | Zone → Email Routing Rules → Edit, and Account → Email Routing Addresses → Read (Edit for `addresses add`) |
+| `turnstile` | Account → Turnstile → Edit |
+| `zone settings` | Zone → Zone Settings → Read (show) or Edit (set) |
 
 ## Other Ways to Install
 
@@ -115,6 +117,8 @@ cloudflare-axi r2 domain remove jala-assets assets.example.com
 
 cloudflare-axi email list                       # rules + routing status + catch-all
 cloudflare-axi email addresses                  # destinations, and whether verified
+cloudflare-axi email addresses add me@gmail.com   # add a destination; reports verified state
+cloudflare-axi email enable                     # enable Email Routing on the zone
 cloudflare-axi email route hi me@gmail.com
 cloudflare-axi email route support@example.com a@gmail.com b@gmail.com
 cloudflare-axi email catch-all me@gmail.com
@@ -131,6 +135,13 @@ cloudflare-axi security js-detection off        # bot JavaScript detections
 cloudflare-axi security browser-check off       # Browser Integrity Check
 cloudflare-axi security level essentially_off   # off|essentially_off|low|medium|high|under_attack
 
+cloudflare-axi zone settings show always_use_https
+cloudflare-axi zone settings set ssl strict     # ssl, always_use_https, min_tls_version, automatic_https_rewrites are validated
+
+cloudflare-axi turnstile list                   # name, sitekey, mode, domains (never the secret)
+cloudflare-axi turnstile create contact --domain example.com --secret-file .turnstile.env   # file is mode 600; the secret is never printed
+cloudflare-axi turnstile delete 0x4AAAAAAAxxxx
+
 cloudflare-axi update --check                   # newer release available?
 ```
 
@@ -139,12 +150,13 @@ cloudflare-axi update --check                   # newer release available?
 | Command | Subcommands | Purpose |
 | --- | --- | --- |
 | *(none)* | — | Dashboard: zones this token can see |
-| `zone` | `list`, `view` | Zones, nameservers, record counts |
+| `zone` | `list`, `view`, `create`, `settings show\|set` | Zones, nameservers, record counts |
 | `dns` | `list`, `get`, `set`, `delete` | DNS records, idempotent writes |
 | `cache` | `purge` | Edge cache purging |
 | `r2` | `list`, `get`, `domain list\|add\|remove` | R2 buckets and custom domains |
-| `email` | `list`, `addresses`, `route`, `catch-all`, `delete` | Email Routing |
+| `email` | `list`, `addresses [add]`, `enable`, `route`, `catch-all`, `delete` | Email Routing |
 | `security` | `show`, `rules`, `check`, `ai-bots`, `bot-fight`, `js-detection`, `browser-check`, `level` | Bot protection, WAF rules, challenge diagnosis, bot and challenge toggles (need Bot Management: Edit or Zone Settings: Edit) |
+| `turnstile` | `list`, `create`, `delete` | Turnstile widgets; secrets go to `--secret-file` only |
 | `setup` | `hooks`, `status`, `uninstall` | Agent session integration |
 
 Every subcommand takes `--help` for a concise reference with its flags and examples.
