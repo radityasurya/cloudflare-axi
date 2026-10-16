@@ -52,6 +52,8 @@ npx -y ${BIN} r2 domain add my-bucket assets.example.com
 npx -y ${BIN} email list
 npx -y ${BIN} email route hi me@gmail.com
 npx -y ${BIN} email catch-all --drop
+npx -y ${BIN} zone settings set ssl strict
+npx -y ${BIN} turnstile list
 npx -y ${BIN} security
 npx -y ${BIN} security check https://example.com/
 npx -y ${BIN} security bot-fight off

@@ -117,15 +117,78 @@ async function create(argv) {
   };
 }
 
+const SETTINGS = {
+  always_use_https: ["on", "off"],
+  ssl: ["off", "flexible", "full", "strict"],
+  min_tls_version: ["1.0", "1.1", "1.2", "1.3"],
+  automatic_https_rewrites: ["on", "off"],
+};
+
+const SETTINGS_HELP = {
+  show: helpFor({
+    command: "zone settings show",
+    description: "Read one zone setting",
+    usage: `${BIN} zone settings show <setting> [--zone <name>]`,
+    examples: [`${BIN} zone settings show always_use_https --zone example.com`],
+  }),
+  set: helpFor({
+    command: "zone settings set",
+    description: `Change one zone setting (idempotent). Validated: ${Object.entries(SETTINGS)
+      .map(([k, v]) => `${k}=${v.join("|")}`)
+      .join("; ")}. Other settings pass through unvalidated`,
+    usage: `${BIN} zone settings set <setting> <value> [--zone <name>]`,
+    examples: [`${BIN} zone settings set min_tls_version 1.2 --zone example.com`],
+  }),
+};
+
+const settingPath = (zoneId, id) => `/zones/${zoneId}/settings/${encodeURIComponent(id)}`;
+
+async function settingShow(argv) {
+  if (wantsHelp(argv)) return SETTINGS_HELP.show;
+  const { values, positionals } = parse(argv, { command: "zone settings show" });
+  const id = required(positionals[0], "<setting>", "zone settings show", `${BIN} zone settings show ssl`);
+  const zone = await resolveZone(values.zone);
+  const { result } = await cf(settingPath(zone.id, id));
+  return { zone: zone.name, [id]: result?.value, editable: result?.editable };
+}
+
+async function settingSet(argv) {
+  if (wantsHelp(argv)) return SETTINGS_HELP.set;
+  const { values, positionals } = parse(argv, { command: "zone settings set" });
+  const example = `${BIN} zone settings set ssl strict`;
+  const id = required(positionals[0], "<setting>", "zone settings set", example);
+  const value = required(positionals[1], "<value>", "zone settings set", example);
+  const allowed = SETTINGS[id];
+  if (allowed && !allowed.includes(value)) {
+    throw new AxiError(`unknown value ${value} for ${id}`, "VALIDATION_ERROR", [
+      `Pass one of: ${allowed.join(", ")}`,
+    ]);
+  }
+  const zone = await resolveZone(values.zone);
+  const { result: before } = await cf(settingPath(zone.id, id));
+  if (before?.value === value) {
+    return { zone: zone.name, [id]: value, unchanged: true, note: `already ${value} (no-op)` };
+  }
+  const { result } = await cf(settingPath(zone.id, id), { method: "PATCH", body: { value } });
+  return { zone: zone.name, [id]: result?.value ?? value, before: before?.value, after: result?.value ?? value };
+}
+
+const settings = makeDispatcher(
+  "zone settings",
+  { show: settingShow, set: settingSet },
+  { summary: { show: "Read one zone setting", set: "Change one zone setting (idempotent)" } },
+);
+
 export const zoneCommand = makeDispatcher(
   "zone",
-  { list, view, create },
+  { list, view, create, settings },
   {
     fallback: "list",
     summary: {
       list: "List the zones this token can see",
       view: "Show one zone with nameservers and record count",
       create: "Add a domain and print its nameservers",
+      settings: "show or set a zone setting (always_use_https, ssl, min_tls_version, ...)",
     },
   },
 );

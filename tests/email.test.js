@@ -114,3 +114,41 @@ test("list surfaces routing status and catch-all without failing when they are u
   assert.equal(output["catch-all"], "not configured");
   assert.equal(output.rules[0].from, "hi@example.com");
 });
+
+test("addresses add creates a destination and reports verified state", async () => {
+  const A = "a".repeat(32);
+  const path = `/accounts/${A}/email/routing/addresses`;
+  const calls = mockCloudflare({
+    "GET /accounts": page([{ id: A, name: "acct" }]),
+    [`GET ${path}`]: page([]),
+    [`POST ${path}`]: { email: "me@gmail.com", verified: null },
+  });
+  const out = await emailCommand(["addresses", "add", "Me@Gmail.com"]);
+  assert.deepEqual(calls.find((c) => c.method === "POST").body, { email: "me@gmail.com" });
+  assert.deepEqual(out.address, { email: "me@gmail.com", verified: false });
+  assert.equal(out.created, true);
+  await assert.rejects(emailCommand(["addresses", "add", "nope"]), /not an email/);
+});
+
+test("addresses add is a no-op for an existing address", async () => {
+  const A = "a".repeat(32);
+  const path = `/accounts/${A}/email/routing/addresses`;
+  const calls = mockCloudflare({
+    "GET /accounts": page([{ id: A, name: "acct" }]),
+    [`GET ${path}`]: page([{ email: "me@gmail.com", verified: "2026-01-01" }]),
+  });
+  const out = await emailCommand(["addresses", "add", "me@gmail.com"]);
+  assert.equal(out.unchanged, true);
+  assert.equal(out.address.verified, true);
+  assert.ok(!calls.some((c) => c.method === "POST"));
+});
+
+test("enable turns on Email Routing for the zone", async () => {
+  const calls = mockCloudflare({
+    ...zoneLookup,
+    [`POST /zones/${zone.id}/email/routing/enable`]: { enabled: true },
+  });
+  const out = await emailCommand(["enable"]);
+  assert.equal(out.routing, "enabled");
+  assert.equal(calls.at(-1).method, "POST");
+});

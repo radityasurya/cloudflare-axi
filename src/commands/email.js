@@ -31,8 +31,14 @@ const HELP = {
   addresses: helpFor({
     command: "email addresses",
     description: "List account destination addresses and whether they are verified",
-    usage: `${BIN} email addresses [--account <id>]`,
-    examples: [`${BIN} email addresses`],
+    usage: `${BIN} email addresses [add <email>] [--account <id>]`,
+    examples: [`${BIN} email addresses`, `${BIN} email addresses add me@gmail.com`],
+  }),
+  enable: helpFor({
+    command: "email enable",
+    description: "Enable Email Routing on a zone (adds the MX and SPF records)",
+    usage: `${BIN} email enable [--zone <name>]`,
+    examples: [`${BIN} email enable --zone example.com`],
   }),
   route: helpFor({
     command: "email route",
@@ -126,8 +132,9 @@ async function list(argv) {
 
 async function addresses(argv) {
   if (wantsHelp(argv)) return HELP.addresses;
-  const { values } = parse(argv, { command: "email addresses" });
+  const { values, positionals } = parse(argv, { command: "email addresses" });
   const accountId = await resolveAccountId({ accountId: values.account });
+  if (positionals[0] === "add") return addAddress(positionals[1], accountId);
   const { items, total } = await cfList(`/accounts/${accountId}/email/routing/addresses`, {
     limit: 100,
   });
@@ -144,6 +151,41 @@ async function addresses(argv) {
       email: entry.email,
       verified: Boolean(entry.verified),
     })),
+  };
+}
+
+async function addAddress(raw, accountId) {
+  const email = required(raw, "<email>", "email addresses add", `${BIN} email addresses add me@gmail.com`)
+    .trim()
+    .toLowerCase();
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+    throw new AxiError(`${raw} is not an email address`, "VALIDATION_ERROR", [
+      `${BIN} email addresses add me@gmail.com`,
+    ]);
+  }
+  const path = `/accounts/${accountId}/email/routing/addresses`;
+  const { items } = await cfList(path, { limit: 100 });
+  const existing = items.find((entry) => entry.email.toLowerCase() === email);
+  const { result } = existing ? { result: existing } : await cf(path, { method: "POST", body: { email } });
+  const verified = Boolean(result?.verified);
+  return {
+    address: { email, verified },
+    ...(existing ? { unchanged: true } : { created: true }),
+    ...(verified
+      ? {}
+      : { help: [`Cloudflare emailed ${email}; open the verification link before routing to it`] }),
+  };
+}
+
+async function enable(argv) {
+  if (wantsHelp(argv)) return HELP.enable;
+  const { values } = parse(argv, { command: "email enable" });
+  const zone = await resolveZone(values.zone);
+  const { result } = await cf(`/zones/${zone.id}/email/routing/enable`, { method: "POST" });
+  return {
+    zone: zone.name,
+    routing: result?.enabled ? "enabled" : (result?.status ?? "unknown"),
+    help: [`Run \`${BIN} email route <from> <to> --zone ${zone.name}\` to forward an address`],
   };
 }
 
@@ -291,12 +333,13 @@ async function remove(argv) {
 
 export const emailCommand = makeDispatcher(
   "email",
-  { list, addresses, route, "catch-all": catchAll, delete: remove },
+  { list, addresses, enable, route, "catch-all": catchAll, delete: remove },
   {
     fallback: "list",
     summary: {
       list: "List routing rules, status, and catch-all",
-      addresses: "List account destination addresses and verification state",
+      addresses: "List destination addresses and verification state; `addresses add <email>` adds one",
+      enable: "Enable Email Routing on a zone",
       route: "Forward an address to destinations (idempotent)",
       "catch-all": "Set the catch-all destination, or drop",
       delete: "Delete a routing rule (idempotent)",
