@@ -77,3 +77,34 @@ test("zone settings set passes unknown settings through", async () => {
   await zoneCommand(["settings", "set", "brotli", "on"]);
   assert.equal(calls.at(-1).method, "PATCH");
 });
+
+test("zone settings set sends numeric settings as numbers", async () => {
+  const path = `/zones/${zone.id}/settings/browser_cache_ttl`;
+  const calls = mockCloudflare({
+    ...zoneLookup,
+    [`GET ${path}`]: { value: 14400 },
+    [`PATCH ${path}`]: ({ body }) => ({ value: body.value }),
+  });
+  const out = await zoneCommand(["settings", "set", "browser_cache_ttl", "0"]);
+  const patch = calls.find((c) => c.method === "PATCH");
+  assert.deepEqual(patch.body, { value: 0 });
+  assert.equal(typeof patch.body.value, "number");
+  assert.deepEqual([out.before, out.after], [14400, 0]);
+  await assert.rejects(zoneCommand(["settings", "set", "browser_cache_ttl", "abc"]), /unknown value/);
+  await assert.rejects(zoneCommand(["settings", "set", "browser_cache_ttl", "1.5"]), /unknown value/);
+  await assert.rejects(zoneCommand(["settings", "set", "challenge_ttl", "301"]), /unknown value/);
+
+  mockCloudflare({ ...zoneLookup, [`GET ${path}`]: { value: 0 } });
+  assert.equal((await zoneCommand(["settings", "set", "browser_cache_ttl", "0"])).unchanged, true);
+});
+
+test("zone settings set keeps string settings as strings", async () => {
+  const path = `/zones/${zone.id}/settings/brotli`;
+  const calls = mockCloudflare({
+    ...zoneLookup,
+    [`GET ${path}`]: { value: "off" },
+    [`PATCH ${path}`]: ({ body }) => ({ value: body.value }),
+  });
+  await zoneCommand(["settings", "set", "brotli", "on"]);
+  assert.deepEqual(calls.find((c) => c.method === "PATCH").body, { value: "on" });
+});
