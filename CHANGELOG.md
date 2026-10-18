@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.1.6](https://github.com/radityasurya/cloudflare-axi/compare/v0.1.5...v0.1.6) (2026-10-18)
+
+
+### Bug Fixes
+
+* **zone:** send numeric zone settings as JSON numbers ([0c4e686](https://github.com/radityasurya/cloudflare-axi/commit/0c4e6869feb2b2e9f611dce937df2ae33048fead))
+* **zone:** send numeric zone settings as JSON numbers ([04f24b8](https://github.com/radityasurya/cloudflare-axi/commit/04f24b8ab3198ac501238f92c539adc310dfe857))
+
 ## [0.1.5](https://github.com/radityasurya/cloudflare-axi/compare/v0.1.4...v0.1.5) (2026-10-16)
 
 
