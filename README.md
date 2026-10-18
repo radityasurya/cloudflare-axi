@@ -137,6 +137,7 @@ cloudflare-axi security level essentially_off   # off|essentially_off|low|medium
 
 cloudflare-axi zone settings show always_use_https
 cloudflare-axi zone settings set ssl strict     # ssl, always_use_https, min_tls_version, automatic_https_rewrites are validated
+cloudflare-axi zone settings set browser_cache_ttl 0   # numeric settings (browser_cache_ttl, challenge_ttl, max_upload, ...) send a number; 0 = respect existing headers
 
 cloudflare-axi turnstile list                   # name, sitekey, mode, domains (never the secret)
 cloudflare-axi turnstile create contact --domain example.com --secret-file .turnstile.env   # file is mode 600; the secret is never printed

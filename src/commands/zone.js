@@ -124,6 +124,29 @@ const SETTINGS = {
   automatic_https_rewrites: ["on", "off"],
 };
 
+// Numeric settings need a JSON number in the PATCH body; a string gets "Invalid value".
+// Allowlist, not /^\d+$/, so a future digit-only string setting is never coerced.
+// Source: https://developers.cloudflare.com/api/resources/zones/subresources/settings/
+const NUMERIC = {
+  browser_cache_ttl: { max: 31536000, hint: "0 (respect existing headers) to 31536000 seconds" },
+  edge_cache_ttl: { max: 31536000, hint: "0 to 31536000 seconds" },
+  challenge_ttl: {
+    only: [300, 900, 1800, 2700, 3600, 7200, 10800, 14400, 28800, 57600, 86400, 604800, 2592000, 31536000],
+  },
+  max_upload: {},
+  proxy_read_timeout: {},
+};
+
+function numericValue(id, raw) {
+  const rule = NUMERIC[id];
+  const n = /^\d+$/.test(raw) ? Number(raw) : NaN;
+  const hint = rule.only ? `one of: ${rule.only.join(", ")}` : (rule.hint ?? "a non-negative integer");
+  if (!Number.isSafeInteger(n) || n > (rule.max ?? Infinity) || (rule.only && !rule.only.includes(n))) {
+    throw new AxiError(`unknown value ${raw} for ${id}`, "VALIDATION_ERROR", [`Pass ${hint}`]);
+  }
+  return n;
+}
+
 const SETTINGS_HELP = {
   show: helpFor({
     command: "zone settings show",
@@ -135,9 +158,12 @@ const SETTINGS_HELP = {
     command: "zone settings set",
     description: `Change one zone setting (idempotent). Validated: ${Object.entries(SETTINGS)
       .map(([k, v]) => `${k}=${v.join("|")}`)
-      .join("; ")}. Other settings pass through unvalidated`,
+      .join("; ")}; ${Object.keys(NUMERIC).join(", ")} take a number (browser_cache_ttl: 0 = respect existing headers). Other settings pass through unvalidated as strings`,
     usage: `${BIN} zone settings set <setting> <value> [--zone <name>]`,
-    examples: [`${BIN} zone settings set min_tls_version 1.2 --zone example.com`],
+    examples: [
+      `${BIN} zone settings set min_tls_version 1.2 --zone example.com`,
+      `${BIN} zone settings set browser_cache_ttl 0 --zone example.com`,
+    ],
   }),
 };
 
@@ -157,10 +183,11 @@ async function settingSet(argv) {
   const { values, positionals } = parse(argv, { command: "zone settings set" });
   const example = `${BIN} zone settings set ssl strict`;
   const id = required(positionals[0], "<setting>", "zone settings set", example);
-  const value = required(positionals[1], "<value>", "zone settings set", example);
+  const raw = required(positionals[1], "<value>", "zone settings set", example);
+  const value = id in NUMERIC ? numericValue(id, raw) : raw;
   const allowed = SETTINGS[id];
-  if (allowed && !allowed.includes(value)) {
-    throw new AxiError(`unknown value ${value} for ${id}`, "VALIDATION_ERROR", [
+  if (allowed && !allowed.includes(raw)) {
+    throw new AxiError(`unknown value ${raw} for ${id}`, "VALIDATION_ERROR", [
       `Pass one of: ${allowed.join(", ")}`,
     ]);
   }
